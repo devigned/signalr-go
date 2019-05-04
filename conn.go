@@ -5,6 +5,7 @@ import (
 	"strings"
 )
 
+// ParsedConnString is the structure extracted from a SignalR connection string
 type ParsedConnString struct {
 	Endpoint string
 	Key      string
@@ -17,7 +18,6 @@ func ParseConnectionString(connStr string) (*ParsedConnString, error) {
 	splits := strings.Split(connStr, ";")
 	parsed := new(ParsedConnString)
 	for _, combo := range splits {
-		println(combo)
 		location := strings.Index(combo, "=") // find the first instance of a "="
 		if location == -1 {
 			return nil, errors.New("connStr: " + connStr + " did not have a '=' between the ';', so it's malformed.")

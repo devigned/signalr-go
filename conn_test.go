@@ -12,4 +12,5 @@ func TestParseConnectionString(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "https://signalr-go-tests-tmycpkux.service.signalr.net", parsed.Endpoint)
 	assert.Equal(t, "foo+bar+baz=", parsed.Key)
+	assert.Equal(t, "1.0", parsed.Version)
 }
