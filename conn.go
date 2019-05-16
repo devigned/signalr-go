@@ -2,12 +2,13 @@ package signalr
 
 import (
 	"errors"
+	"net/url"
 	"strings"
 )
 
 // ParsedConnString is the structure extracted from a SignalR connection string
 type ParsedConnString struct {
-	Endpoint string
+	Endpoint *url.URL
 	Key      string
 	Version  string
 }
@@ -25,7 +26,11 @@ func ParseConnectionString(connStr string) (*ParsedConnString, error) {
 		key := combo[0:location]
 		value := combo[location+1:]
 		if key == "Endpoint" {
-			parsed.Endpoint = value
+			u, err := url.Parse(value)
+			if err != nil {
+				return nil, err
+			}
+			parsed.Endpoint = u
 		} else if key == "AccessKey" {
 			parsed.Key = value
 		} else if key == "Version" {
