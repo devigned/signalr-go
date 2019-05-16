@@ -15,7 +15,7 @@ type (
 	HandlerFunc func(ctx context.Context, target string, args []json.RawMessage) error
 )
 
-// Handle redirects this call to the func that was provided
+// Default redirects this call to the func that was provided
 func (hf HandlerFunc) Default(ctx context.Context, target string, args []json.RawMessage) error {
 	return hf.Default(ctx, target, args)
 }

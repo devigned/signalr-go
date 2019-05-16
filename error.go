@@ -5,6 +5,7 @@ import (
 )
 
 type (
+	// SendFailureError provides added error information when a send message call fails
 	SendFailureError struct {
 		StatusCode int
 		Body       string

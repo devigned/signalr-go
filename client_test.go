@@ -34,7 +34,7 @@ func TestClient_Listen(t *testing.T) {
 }
 
 func TestClient_Broadcast(t *testing.T) {
-	withContext(func(ctx context.Context){
+	withContext(func(ctx context.Context) {
 		client := buildClient(t)
 		msg, err := signalr.NewInvocationMessage("foo")
 		assert.NoError(t, err)

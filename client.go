@@ -34,7 +34,7 @@ type (
 
 	// NegotiateResponse is the structure to respond to a client for access to a hub resource
 	negotiateResponse struct {
-		ConnectionId        string      `json:"connectionId,omitempty"`
+		ConnectionID        string      `json:"connectionId,omitempty"`
 		AvailableTransports []transport `json:"availableTransports"`
 	}
 
@@ -43,12 +43,12 @@ type (
 		Formats []string `json:"transportFormats,omitempty"`
 	}
 
-	audienceType string
+	audienceType   string
 	transportTypes string
 
 	signalrCliams struct {
 		jwt.StandardClaims
-		NameId string `json:"nameid,omitempty"`
+		NameID string `json:"nameid,omitempty"`
 	}
 
 	handshakeRequest struct {
@@ -66,7 +66,7 @@ type (
 	InvocationMessage struct {
 		Type         messageType       `json:"type,omitempty"`
 		Headers      map[string]string `json:"headers,omitempty"`
-		InvocationId string            `json:"invocationId,omitempty"`
+		InvocationID string            `json:"invocationId,omitempty"`
 		Target       string            `json:"target"`
 		Arguments    []json.RawMessage `json:"arguments"`
 		Error        string            `json:"error,omitempty"`
@@ -123,6 +123,7 @@ func NewClient(connStr string, hubName string, opts ...ClientOption) (*Client, e
 	return client, nil
 }
 
+// Listen will start the WebSocket connection for the client
 func (c *Client) Listen(ctx context.Context, handler Handler) error {
 	err := c.negotiateOnce(ctx)
 	if err != nil {
@@ -135,11 +136,11 @@ func (c *Client) Listen(ctx context.Context, handler Handler) error {
 		return err
 	}
 
-	conn, resp, err := websocket.Dial(ctx, c.getWssUri(), websocket.DialOptions{
+	conn, resp, err := websocket.Dial(ctx, c.getWssURI(), websocket.DialOptions{
 		HTTPHeader: http.Header{
 			"Authorization": []string{"Bearer " + token},
 		},
-		HTTPClient: newHttpClient(),
+		HTTPClient: newHTTPClient(),
 	})
 	if resp != nil {
 		defer func() {
@@ -190,11 +191,13 @@ func (c *Client) Listen(ctx context.Context, handler Handler) error {
 	return nil
 }
 
+// Broadcast will send a broadcast `InvocationMessage` to the hub
 func (c *Client) Broadcast(ctx context.Context, msg *InvocationMessage) error {
-	return c.Invocation(ctx, c.getBroadcastUri(), msg)
+	return c.SendInvocation(ctx, c.getBroadcastURI(), msg)
 }
 
-func (c *Client) Invocation(ctx context.Context, uri string, msg *InvocationMessage) error {
+// SendInvocation will send an `InvocationMessage` to the hub
+func (c *Client) SendInvocation(ctx context.Context, uri string, msg *InvocationMessage) error {
 	bits, err := json.Marshal(msg)
 	if err != nil {
 		return err
@@ -213,7 +216,7 @@ func (c *Client) Invocation(ctx context.Context, uri string, msg *InvocationMess
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
 	req.WithContext(ctx)
-	client := newHttpClient()
+	client := newHTTPClient()
 	res, err := client.Do(req)
 	if res != nil {
 		defer func() {
@@ -337,49 +340,49 @@ func (c *Client) generateToken(audience string, expiresAfter time.Duration) (str
 			Audience:  audience,
 			ExpiresAt: now.Add(expiresAfter).Unix(),
 		},
-		NameId: c.Name,
+		NameID: c.Name,
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString([]byte(c.parsedConnStr.Key))
 }
 
-func (c *Client) getWssUri() string {
-	wssBaseUri := strings.Replace(c.getWssAudience(), "https://", "wss://", 1)
-	return wssBaseUri + "&id=" + c.negotiateRes.ConnectionId
+func (c *Client) getWssURI() string {
+	wssBaseURI := strings.Replace(c.getWssAudience(), "https://", "wss://", 1)
+	return wssBaseURI + "&id=" + c.negotiateRes.ConnectionID
 }
 
 func (c *Client) getWssAudience() string {
 	return fmt.Sprintf("%s/%s/?hub=%s", c.parsedConnStr.Endpoint.String(), c.audType, strings.ToLower(c.hubName))
 }
 
-func (c *Client) getBroadcastUri() string {
-	return c.getBaseUri()
+func (c *Client) getBroadcastURI() string {
+	return c.getBaseURI()
 }
 
-func (c *Client) getSendToUsersUri(userIds []string) string {
-	concatUsers := strings.Join(userIds, ",")
-	return fmt.Sprintf("%s/users/%s", c.getBaseUri(), concatUsers)
+func (c *Client) getSendToUsersURI(userIDs []string) string {
+	concatUsers := strings.Join(userIDs, ",")
+	return fmt.Sprintf("%s/users/%s", c.getBaseURI(), concatUsers)
 }
 
-func (c *Client) getSendToUserUri(userId string) string {
-	return fmt.Sprintf("%s/users/%s", c.getBaseUri(), userId)
+func (c *Client) getSendToUserURI(userID string) string {
+	return fmt.Sprintf("%s/users/%s", c.getBaseURI(), userID)
 }
 
-func (c *Client) getSendToGroupUri(groupName string) string {
-	return fmt.Sprintf("%s/group/%s", c.getBaseUri(), groupName)
+func (c *Client) getSendToGroupURI(groupName string) string {
+	return fmt.Sprintf("%s/group/%s", c.getBaseURI(), groupName)
 }
 
-func (c *Client) getSendToGroupsUri(groups []string) string {
+func (c *Client) getSendToGroupsURI(groups []string) string {
 	concatGroups := strings.Join(groups, ",")
-	return fmt.Sprintf("%s/groups/%s", c.getBaseUri(), concatGroups)
+	return fmt.Sprintf("%s/groups/%s", c.getBaseURI(), concatGroups)
 }
 
-func (c *Client) getBaseUri() string {
+func (c *Client) getBaseURI() string {
 	return fmt.Sprintf("%s/api/v1/hubs/%s", c.parsedConnStr.Endpoint, strings.ToLower(c.hubName))
 }
 
-func newHttpClient() *http.Client {
+func newHTTPClient() *http.Client {
 	tr := &http.Transport{
 		MaxIdleConnsPerHost: 10,
 		TLSClientConfig: &tls.Config{
@@ -421,8 +424,8 @@ func (c *Client) negotiateOnce(ctx context.Context) error {
 
 func (c *Client) negotiate(ctx context.Context) (*negotiateResponse, error) {
 	endpoint := c.parsedConnStr.Endpoint
-	negotiateUri := fmt.Sprintf("%s/%s/%s", endpoint, c.audType, "negotiate?hub="+c.hubName)
-	req, err := http.NewRequest(http.MethodPost, negotiateUri, nil)
+	negotiateURI := fmt.Sprintf("%s/%s/%s", endpoint, c.audType, "negotiate?hub="+c.hubName)
+	req, err := http.NewRequest(http.MethodPost, negotiateURI, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -436,7 +439,7 @@ func (c *Client) negotiate(ctx context.Context) (*negotiateResponse, error) {
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
 	req.WithContext(ctx)
-	client := newHttpClient()
+	client := newHTTPClient()
 	res, err := client.Do(req)
 	if res != nil {
 		defer func() {
@@ -462,6 +465,7 @@ func (c *Client) negotiate(ctx context.Context) (*negotiateResponse, error) {
 	return &negRes, nil
 }
 
+// NewInvocationMessage creates a new `InvocationMessage` from a target method name and arguments
 func NewInvocationMessage(target string, args ...interface{}) (*InvocationMessage, error) {
 	jsonArgs := make([]json.RawMessage, len(args))
 	for i := 0; i < len(args); i++ {
