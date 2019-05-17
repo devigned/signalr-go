@@ -43,7 +43,7 @@ type (
 		Formats []string `json:"transportFormats,omitempty"`
 	}
 
-	audienceType   string
+	audienceType string
 	transportTypes string
 
 	signalrCliams struct {
@@ -111,7 +111,7 @@ func NewClient(connStr string, hubName string, opts ...ClientOption) (*Client, e
 		hubName:       hubName,
 		parsedConnStr: parsed,
 		audType:       clientAudienceType,
-		Name:          "client_" + uuid.Must(uuid.NewRandom()).String(),
+		Name:          uuid.Must(uuid.NewRandom()).String(),
 	}
 
 	for _, opt := range opts {
@@ -152,23 +152,34 @@ func (c *Client) Listen(ctx context.Context, handler Handler) error {
 		return err
 	}
 
+	err = c.handshake(ctx, conn)
+	if err != nil {
+		return err
+	}
+
 	select {
 	case <-ctx.Done():
 	default:
-		err := c.handshake(ctx, conn)
-		if err != nil {
-			return err
+		if h, ok := handler.(NotifiedHandler); ok {
+			h.OnStart()
 		}
 
 		for {
 			bits, err := readConn(ctx, conn)
+			if err != nil {
+				if err.Error() == "failed to get reader: context canceled" {
+					return nil
+				}
+				return err
+			}
+
 			var msg InvocationMessage
 			err = json.Unmarshal(bits, &msg)
 			if err != nil {
 				return err
 			}
 
-			fmt.Println(string(bits))
+			//fmt.Println(string(bits))
 			switch msg.Type {
 			case pingMessageType:
 				// nop
@@ -253,8 +264,9 @@ func (c *Client) SendInvocation(ctx context.Context, uri string, msg *Invocation
 //}
 
 func readConn(ctx context.Context, conn *websocket.Conn) ([]byte, error) {
-	readerCtx, cancel := context.WithTimeout(ctx, 100*time.Second)
+	readerCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
+
 	_, reader, err := conn.Reader(readerCtx)
 	if err != nil {
 		return nil, err
@@ -454,6 +466,13 @@ func (c *Client) negotiate(ctx context.Context) (*negotiateResponse, error) {
 	bodyBits, err := ioutil.ReadAll(res.Body)
 	if err != nil {
 		return nil, err
+	}
+
+	if res.StatusCode > 399 {
+		return nil, &SendFailureError{
+			StatusCode: res.StatusCode,
+			Body:       string(bodyBits),
+		}
 	}
 
 	var negRes negotiateResponse

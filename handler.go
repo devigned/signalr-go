@@ -13,9 +13,30 @@ type (
 
 	// HandlerFunc is a type converter that allows a func to be used as a `Handler`
 	HandlerFunc func(ctx context.Context, target string, args []json.RawMessage) error
+
+	NotifiedHandler interface {
+		Handler
+		OnStart()
+	}
+
+	defaultNotifiedHandler struct {
+		Handler
+		onStart func()
+	}
 )
 
 // Default redirects this call to the func that was provided
 func (hf HandlerFunc) Default(ctx context.Context, target string, args []json.RawMessage) error {
-	return hf.Default(ctx, target, args)
+	return hf(ctx, target, args)
+}
+
+func NewNotifiedHandler(base Handler, onStart func()) NotifiedHandler {
+	return &defaultNotifiedHandler{
+		Handler: base,
+		onStart: onStart,
+	}
+}
+
+func (nh defaultNotifiedHandler) OnStart() {
+	nh.onStart()
 }
