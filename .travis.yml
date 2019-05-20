@@ -1,0 +1,38 @@
+language: go
+sudo: false
+go:
+- 1.x
+- 1.11.x
+before_install:
+- cd ${TRAVIS_HOME}
+- go get github.com/mattn/goveralls
+- go get golang.org/x/tools/cmd/cover
+- go get github.com/fzipp/gocyclo
+- go get golang.org/x/lint/golint
+- cd ${TRAVIS_BUILD_DIR}
+jobs:
+  include:
+  - stage: integration tests
+    if: type IN (push, cron)
+    env:
+      - secure: ui4984r5yNn0eGQz8++/kMN7WYR7lpYv3wVwbmgMHnZSVFZn343Et49wZiVJe2SSJUxN4wdXMnWWKCg3TfLWg24/qpAB53RGJCB9Hx2PQJS/+pY+V7mCD+0lw/5bJ0rsnqNPsRUNjBPw52Wf5VVUi+BygvJLtpYqvXqvP+iXryNltpoUiq5heWYMpUobPGsCtEAqMFSxInKysTy27J/kP/643EPgf3DXcfo67OnhcRdhRb4XPfuSCFBz8PDIjm/cDJAL8kuZ6v6ZQx6srF4o9W9Smr99m+N4XudAKQA7L2XY/9b679HXduOfoXnVdd+kbWYXgBm+XwEBr4uEKoobGDC0cBAeNn0ljKCpEXDy9p3h0mdhLudFpnVsypAsz1Eowl38++ABeayIahi1AugAUKdo2zACmbCBvRWyyzKQXZ+riu7RwAP9o46j/NkxRKkpVZyUx6aUQjLQS1u4B5h00k7mRtLChP3z2Wx0K5sjec4rxusFuMi+XonKzk6/jktnoux95cTWXEDkIAwGJivcfqKFHXWA1P4OKW8PvHddf4LDQ53piFF/lb4TlWSS32cPFZ8lHgnrr+ksHieGrPz00ydj8mSGK1jUUR/eHqS50PUvSxvoJ5RJk3KGj0CgeckIoZHOBjJzrOD61F1o3wb7sJ+YQ9dllAdQi1xtnWITjXI=
+      - secure: uC4Q9vu161cPldaukubVKcNdZZ2qB8hz9WtNwC6tZVAgohhTpTcpYN2R6r1gbTQM0xdXMXv9+VgirxPQ7O/JHMN4ffoGCIQDI8Ssc05ER2G0fgun2DSbw3yFU7om8G3cCVzUf1Hb3/cSa5pEWSOSgKagWcz0NdCJwawJoW7SCWXv581ckZ56fqyqZsEjtBNLalk8sfbmiUy26vcUwpn0Koso9nnn9Hrsz8yxQKFIFNSUfH/yhdoheV0PmNVTbWNJTTQfojD6j7BVNkllI/wLmzd9uASHQqvJMI4QJ4gm4k1yCNUv39cf2WkGrmGlJRWTw/fXettQuqaisjUOC2MjcBLycbHwXtgsrBp/F31f5COcY6cKzkqajcqRsHO/YlygSe90dCSwONMcmMo5a6WdFSI3VTKLu9bDJozvpaID6vIUd5k3pGrjSg/8mQiK2/hT6iamTEbcfTXFcWrZtwQTRKH2WgHA08Mf0ln1LrCHr0vuIOlPqcQ538NQVkz8Ynv/xA4Hybjpm12q71wfapimVLESuLCfezxo4FqLyV//RrtXySZhuUZW7iIay2nFEGUjx5/MdJR5UWRLKQblVCpNQD37RkHUFt0R/f/OQ7k+Bx+hrRC1vOFIQkPO36/wNo2Vz6nC2ksCO+c+Yib8IDSdQi+ZzGhfSEyg3jUyDTeuxEE=
+      - secure: uTnbHvNaX9rJntzXpCQTDq5WPBWNmR4xQeey3vjlBYBaiEt+cEWONvFxMy06JMvF66f7tY7omcQiNjrZQ2tWfRW4WC87Ip8wnTKg8/1J/OnqBMDeyDaUhwEVOU0doCoJQQkZ5G8nzUx6hvvGr1Iejdlu+njN4iascSEn4prSe4kKGdSiajkpAl5QXQD4Xo/8g6ud8+ptO5sxXk7izlOH8qdcdGmLGtIG/72lXy5erEwfE9/KFGEtBhOCcXCyQE9Lc3xji53CON5L8Szv5Gqq78urpCtmlEFs01eVRl116de0VmpU7P9345CpIkdQAIbMclqIirwQoSAPhT5Gh7YoHZYLpP+wgzYDi+KMKl6h0Ad5UYbiX9e78OTuPZRp2WYl1acg8FOzltcrMoU30pcw+7eQ2t5/wpSccaU4NQbsSCXLkoyqeIvrx87gA0My4Vhjn0U5NM01aPqNopPP5nLywZHhQp4Vn3hp+ItBVTeZyrLUn1m+hg9q4CWiDr/j11SKTmy9twbK/ARNWfABAL/PR8ut88GqR2oraYRtIv8lzE47i42hLM0fWTMQe3F4wRJWJJrHwPchTxO0fwyP4otcaIIILazl9qC585mPg5HaIzK/rLYGqE+TPwDG9ls+5HUnICw+SPGrGPyclD7DuTAArs/mR9MotDRUgWB4C8lkJ9A=
+      - secure: knCcmapmVux/E8Kcaf3rU9lMvCgta8mcSRZlLaZ5+HVn8RILruwK1Oacy85cLf6iyH7im8++OqV3ehstX3iHUZV2EXLEFm2OW8y1QAyNTq7ejtUkhNY6xhq/oYRGxIq5tFV+7wxIprMGsWZhO0knKyctGPEKcp1/dcOWhQyorqVsbCAKTj/8hc3FltdanBzGTHlipWVCBDJO+wU+qlARg+zqNa8bBirtXMRDFPRVCurEdjcwD4yDxss1ngpqety7c3j81o8oGASDzZaDTh2MSVz9CO8d0kcg7nBGzxIsCl4jyrbckb+9G8P6tHGBo29cAeJeYqJEsc8yB/4zhUGPdInYUqxZ/5mo+a7zh7VBChNpYc7+b2TmRgHuuXec2LNdWZmExaIhyT2DOah2bkbiHAT4rHQ3tCci+PlQUHJviwwM0cxylTWsOUbRoMP69B3gVI45KC702YMfgOB8UGmT2wSjfB+yZGOSOd5OWJ133nKx5vLcHeCRJzB8mEWN09IjLtZpYty0uQ7P4IbBUCNsAeXg29+DMLVHbSewOzuaLw2heiDjDMOfxy6r0B06sLPsk6/D1ClYE8Yevu+5lufxiqv9R6p50aO4gfq1Ghm88zdRkxswVhy8SNotn3+NippFRIn2rGIAdzeld/UAsNq2DP6iFc7JblwlzwnDDyx4Qzo=
+    script:
+    - curl -sLo /tmp/terraform.zip https://releases.hashicorp.com/terraform/0.11.14/terraform_0.11.14_linux_amd64.zip
+    - unzip /tmp/terraform.zip -d /tmp
+    - mkdir -p ~/bin
+    - mv /tmp/terraform ~/bin
+    - export PATH="~/bin:$PATH"
+    - export ARM_SUBSCRIPTION_ID=$(echo $AZURE_SUBSCRIPTION_ID)
+    - export ARM_CLIENT_ID=$(echo $AZURE_CLIENT_ID)
+    - export ARM_CLIENT_SECRET=$(echo $AZURE_CLIENT_SECRET)
+    - export ARM_TENANT_ID=$(echo $AZURE_TENANT_ID)
+    - export GO111MODULE=on
+    - make test-cover
+    - goveralls -coverprofile=cover.out -service=travis-ci
+    - make destroy
+script:
+- export GO111MODULE=on
+- make
