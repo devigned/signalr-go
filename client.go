@@ -43,7 +43,7 @@ type (
 		Formats []string `json:"transportFormats,omitempty"`
 	}
 
-	audienceType string
+	audienceType   string
 	transportTypes string
 
 	signalrCliams struct {
@@ -184,16 +184,11 @@ func (c *Client) Listen(ctx context.Context, handler Handler) error {
 			case pingMessageType:
 				// nop
 			case invocationMessageType:
-				if err := handler.Default(ctx, msg.Target, msg.Arguments); err != nil {
-					return err
-				}
+				return dispatch(ctx, handler, &msg)
 			case streamInvocationMessageType, streamItemMessageType, cancelInvocationMessageType, completionMessageType:
 				return errors.New("unhandled InvocationMessage type: " + string(msg.Type))
 			case closeMessageType:
-				if msg.Error != "" {
-					return errors.New(msg.Error)
-				}
-				return nil
+				return conn.Close(websocket.StatusNormalClosure, "received close message from SignalR service")
 			}
 
 		}
@@ -202,9 +197,103 @@ func (c *Client) Listen(ctx context.Context, handler Handler) error {
 	return nil
 }
 
-// Broadcast will send a broadcast `InvocationMessage` to the hub
-func (c *Client) Broadcast(ctx context.Context, msg *InvocationMessage) error {
+// BroadcastAll will send a broadcast `InvocationMessage` to all listening to the hub
+func (c *Client) BroadcastAll(ctx context.Context, msg *InvocationMessage) error {
 	return c.SendInvocation(ctx, c.getBroadcastURI(), msg)
+}
+
+// BroadcastGroup will send a broadcast `InvocationMessage` to all listening to the hub group
+func (c *Client) BroadcastGroup(ctx context.Context, msg *InvocationMessage, groupName string) error {
+	return c.SendInvocation(ctx, c.getSendToGroupURI(groupName), msg)
+}
+
+// SendToUser will send a `InvocationMessage` to a particular user
+func (c *Client) SendToUser(ctx context.Context, msg *InvocationMessage, userID string) error {
+	return c.SendInvocation(ctx, c.getSendToUserURI(userID), msg)
+}
+
+// AddUserToGroup will add a userID to a SignalR group
+func (c *Client) AddUserToGroup(ctx context.Context, groupName string, userID string) error {
+	req, err := http.NewRequest(http.MethodPut, c.getGroupUserURI(groupName, userID), nil)
+	if err != nil {
+		return err
+	}
+
+	res, err := c.do(ctx, req)
+	defer closeRes(res)
+	if err != nil {
+		return err
+	}
+
+	bodyBits, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return err
+	}
+
+	if res.StatusCode > 399 {
+		return SendFailureError{
+			StatusCode: res.StatusCode,
+			Body:       string(bodyBits),
+		}
+	}
+
+	return nil
+}
+
+// RemoveUserFromGroup will remove a userID from a SignalR group
+func (c *Client) RemoveUserFromGroup(ctx context.Context, groupName string, userID string) error {
+	req, err := http.NewRequest(http.MethodDelete, c.getGroupUserURI(groupName, userID), nil)
+	if err != nil {
+		return err
+	}
+
+	res, err := c.do(ctx, req)
+	defer closeRes(res)
+	if err != nil {
+		return err
+	}
+
+	bodyBits, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return err
+	}
+
+	if res.StatusCode > 399 {
+		return SendFailureError{
+			StatusCode: res.StatusCode,
+			Body:       string(bodyBits),
+		}
+	}
+
+	return nil
+}
+
+// RemoveUserFromAllGroups will remove a user from all groups
+func (c *Client) RemoveUserFromAllGroups(ctx context.Context, userID string) error {
+	req, err := http.NewRequest(http.MethodDelete, c.getUsersGroupsURI(userID), nil)
+	if err != nil {
+		return err
+	}
+
+	res, err := c.do(ctx, req)
+	defer closeRes(res)
+	if err != nil {
+		return err
+	}
+
+	bodyBits, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return err
+	}
+
+	if res.StatusCode > 399 {
+		return SendFailureError{
+			StatusCode: res.StatusCode,
+			Body:       string(bodyBits),
+		}
+	}
+
+	return nil
 }
 
 // SendInvocation will send an `InvocationMessage` to the hub
@@ -229,11 +318,7 @@ func (c *Client) SendInvocation(ctx context.Context, uri string, msg *Invocation
 	req.WithContext(ctx)
 	client := newHTTPClient()
 	res, err := client.Do(req)
-	if res != nil {
-		defer func() {
-			_ = res.Body.Close()
-		}()
-	}
+	defer closeRes(res)
 
 	if err != nil {
 		fmt.Println(err)
@@ -254,14 +339,18 @@ func (c *Client) SendInvocation(ctx context.Context, uri string, msg *Invocation
 	return nil
 }
 
-//func sendCompletion(ctx context.Context, conn *websocket.Conn) error {
-//	wr, err := conn.Writer(ctx, websocket.MessageText)
-//	if err != nil {
-//		return err
-//	}
-//
-//	wr.Write()
-//}
+func (c *Client) do(ctx context.Context, req *http.Request) (*http.Response, error) {
+	token, err := c.generateToken(req.URL.String(), 2*time.Hour)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	req.WithContext(ctx)
+	client := newHTTPClient()
+	return client.Do(req)
+}
 
 func readConn(ctx context.Context, conn *websocket.Conn) ([]byte, error) {
 	readerCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
@@ -284,22 +373,13 @@ func readConn(ctx context.Context, conn *websocket.Conn) ([]byte, error) {
 	return bits, nil
 }
 
-//// SendToUser will send a InvocationMessage directly to the specified user
-//func (c *Client) SendToUser(userId string) error {
-//	return nil
-//}
-
-//func (c *Client) SendToGroup(groupId string) error {
-//	return nil
-//}
-
 func (c *Client) handshake(ctx context.Context, conn *websocket.Conn) error {
 	hsReq := handshakeRequest{
 		Protocol: "json",
 		Version:  1,
 	}
 
-	bytes, err := json.Marshal(hsReq)
+	bits, err := json.Marshal(hsReq)
 	if err != nil {
 		return err
 	}
@@ -309,7 +389,7 @@ func (c *Client) handshake(ctx context.Context, conn *websocket.Conn) error {
 		return err
 	}
 
-	_, err = wrCloser.Write(append(bytes, messageTerminator))
+	_, err = wrCloser.Write(append(bits, messageTerminator))
 	if err != nil {
 		return err
 	}
@@ -323,17 +403,17 @@ func (c *Client) handshake(ctx context.Context, conn *websocket.Conn) error {
 		return err
 	}
 
-	bytes, err = ioutil.ReadAll(resp)
+	bits, err = ioutil.ReadAll(resp)
 	if err != nil {
 		return err
 	}
 
-	if bytes[len(bytes)-1] == messageTerminator {
-		bytes = bytes[0 : len(bytes)-1]
+	if bits[len(bits)-1] == messageTerminator {
+		bits = bits[0 : len(bits)-1]
 	}
 
 	var hsRes handshakeResponse
-	if err := json.Unmarshal(bytes, &hsRes); err != nil {
+	if err := json.Unmarshal(bits, &hsRes); err != nil {
 		return err
 	}
 
@@ -372,22 +452,20 @@ func (c *Client) getBroadcastURI() string {
 	return c.getBaseURI()
 }
 
-func (c *Client) getSendToUsersURI(userIDs []string) string {
-	concatUsers := strings.Join(userIDs, ",")
-	return fmt.Sprintf("%s/users/%s", c.getBaseURI(), concatUsers)
-}
-
 func (c *Client) getSendToUserURI(userID string) string {
 	return fmt.Sprintf("%s/users/%s", c.getBaseURI(), userID)
 }
 
 func (c *Client) getSendToGroupURI(groupName string) string {
-	return fmt.Sprintf("%s/group/%s", c.getBaseURI(), groupName)
+	return fmt.Sprintf("%s/groups/%s", c.getBaseURI(), groupName)
 }
 
-func (c *Client) getSendToGroupsURI(groups []string) string {
-	concatGroups := strings.Join(groups, ",")
-	return fmt.Sprintf("%s/groups/%s", c.getBaseURI(), concatGroups)
+func (c *Client) getGroupUserURI(groupName, userID string) string {
+	return fmt.Sprintf("%s/groups/%s/users/%s", c.getBaseURI(), groupName, userID)
+}
+
+func (c *Client) getUsersGroupsURI(userID string) string {
+	return fmt.Sprintf("%s/users/%s/groups", c.getBaseURI(), userID)
 }
 
 func (c *Client) getBaseURI() string {
@@ -453,11 +531,7 @@ func (c *Client) negotiate(ctx context.Context) (*negotiateResponse, error) {
 	req.WithContext(ctx)
 	client := newHTTPClient()
 	res, err := client.Do(req)
-	if res != nil {
-		defer func() {
-			_ = res.Body.Close()
-		}()
-	}
+	defer closeRes(res)
 
 	if err != nil {
 		fmt.Println(err)
@@ -500,4 +574,10 @@ func NewInvocationMessage(target string, args ...interface{}) (*InvocationMessag
 		Target:    target,
 		Arguments: jsonArgs,
 	}, nil
+}
+
+func closeRes(res *http.Response) {
+	if res != nil {
+		_ = res.Body.Close()
+	}
 }

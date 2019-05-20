@@ -11,14 +11,44 @@ import (
 
 	"github.com/alexsasharegan/dotenv"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/devigned/signalr-go"
 )
 
+type (
+	FancyHandlerMock struct {
+		mock.Mock
+		onStart func()
+		cancel  func()
+	}
+
+	ComplexObject struct {
+		FieldString string `json:"fieldString,omitempty"`
+		FieldInt    int    `json:"fieldInt,omitempty"`
+	}
+)
+
 var (
 	letterRunes = []rune("abcdefghijklmnopqrstuvwxyz123456789")
 )
+
+func (fhm *FancyHandlerMock) Default(ctx context.Context, target string, args []json.RawMessage) error {
+	defer fhm.cancel()
+	it := fhm.Called(ctx, target, args)
+	return it.Error(0)
+}
+
+func (fhm *FancyHandlerMock) TargetFunc(ctx context.Context, arg1 string, arg2 *ComplexObject) error {
+	defer fhm.cancel()
+	it := fhm.Called(ctx, arg1, arg2)
+	return it.Error(0)
+}
+
+func (fhm *FancyHandlerMock) OnStart() {
+	fhm.onStart()
+}
 
 func init() {
 	if err := dotenv.Load(); err != nil {
@@ -54,9 +84,49 @@ func TestClient_Listen(t *testing.T) {
 
 		msg, err := signalr.NewInvocationMessage("foo")
 		require.NoError(t, err)
-		require.NoError(t, client.Broadcast(ctx, msg)) // broadcast a message to all clients
+		require.NoError(t, client.BroadcastAll(ctx, msg)) // broadcast a message to all clients
 		<-listenCtx.Done()
 		assert.Equal(t, "foo", targetName)
+	})
+}
+
+func TestClient_ListenWithHandlerMethod(t *testing.T) {
+	target := "TargetFunc"
+	arg1 := "hello world!"
+	arg2 := &ComplexObject{
+		FieldString: "fieldString",
+		FieldInt:    42,
+	}
+	withContext(t, func(ctx context.Context, client *signalr.Client) {
+		listenCtx, cancel := context.WithCancel(ctx)
+		started := make(chan struct{}, 1)
+
+		h := &FancyHandlerMock{
+			onStart: func() {
+				started <- struct{}{}
+			},
+			cancel: cancel,
+		}
+
+		h.On(target, mock.Anything, arg1, mock.MatchedBy(func(obj *ComplexObject) bool {
+			return obj.FieldInt == arg2.FieldInt && obj.FieldString == obj.FieldString
+		})).Return(nil).Once()
+
+		go func() {
+			err := client.Listen(listenCtx, h)
+			assert.NoError(t, err)
+		}()
+
+		select {
+		case <-started:
+		case <-ctx.Done():
+		}
+
+		msg, err := signalr.NewInvocationMessage(target, arg1, arg2)
+		require.NoError(t, err)
+		require.NoError(t, client.BroadcastAll(ctx, msg)) // broadcast a message to all clients
+		<-listenCtx.Done()
+		h.AssertExpectations(t)
 	})
 }
 
@@ -64,7 +134,41 @@ func TestClient_Broadcast(t *testing.T) {
 	withContext(t, func(ctx context.Context, client *signalr.Client) {
 		msg, err := signalr.NewInvocationMessage("foo")
 		assert.NoError(t, err)
-		assert.NoError(t, client.Broadcast(ctx, msg))
+		assert.NoError(t, client.BroadcastAll(ctx, msg))
+	})
+}
+
+func TestClient_BroadcastGroup(t *testing.T) {
+	withContext(t, func(ctx context.Context, client *signalr.Client) {
+		msg, err := signalr.NewInvocationMessage("foo")
+		assert.NoError(t, err)
+		assert.NoError(t, client.BroadcastGroup(ctx, msg, "group1"))
+	})
+}
+
+func TestClient_AddUserToGroup(t *testing.T) {
+	withContext(t, func(ctx context.Context, client *signalr.Client) {
+		assert.NoError(t, client.AddUserToGroup(ctx, "group1", "user1"))
+	})
+}
+
+func TestClient_RemoveUserFromGroup(t *testing.T) {
+	withContext(t, func(ctx context.Context, client *signalr.Client) {
+		assert.NoError(t, client.RemoveUserFromGroup(ctx, "group1", "user1"))
+	})
+}
+
+func TestClient_RemoveUserFromAllGroups(t *testing.T) {
+	withContext(t, func(ctx context.Context, client *signalr.Client) {
+		assert.NoError(t, client.RemoveUserFromAllGroups(ctx, "user1"))
+	})
+}
+
+func TestClient_SendToUser(t *testing.T) {
+	withContext(t, func(ctx context.Context, client *signalr.Client) {
+		msg, err := signalr.NewInvocationMessage("foo")
+		assert.NoError(t, err)
+		assert.NoError(t, client.SendToUser(ctx, msg, "user1"))
 	})
 }
 
