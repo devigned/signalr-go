@@ -14,7 +14,7 @@ GOLINT  = $(BIN)/golint
 V = 0
 Q = $(if $(filter 1,$V),,@)
 M = $(shell printf "\033[34;1m▶\033[0m")
-TIMEOUT = 720
+TIMEOUT = 60
 
 .PHONY: all
 all: fmt lint vet tidy build

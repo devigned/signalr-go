@@ -112,7 +112,7 @@ func ExampleClient_SendToUser() {
 	}
 
 	// wait for the `MessagePrinterHandler` to call cancel on the context
-	<- ctx.Done()
+	<-ctx.Done()
 
 	// Output: hello only to you
 }
@@ -158,7 +158,7 @@ func ExampleClient_BroadcastAll() {
 	}
 
 	// wait for the `MessagePrinterHandler` to call cancel on the context
-	<- ctx.Done()
+	<-ctx.Done()
 
 	// Output: hello world!
 }
@@ -174,6 +174,7 @@ func ExampleClient_BroadcastGroup() {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	if err := client.AddUserToGroup(ctx, groupName, client.GetName()); err != nil {
 		fmt.Println(err)
 		return
@@ -209,7 +210,7 @@ func ExampleClient_BroadcastGroup() {
 	}
 
 	// wait for the `MessagePrinterHandler` to call cancel on the context
-	<- ctx.Done()
+	<-ctx.Done()
 
 	// Output: I'm part of the cool group
 }
