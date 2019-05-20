@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/alexsasharegan/dotenv"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -55,6 +56,17 @@ func init() {
 		fmt.Println("Failed to load the .env file. If you expected env vars to be loaded from there, they weren't.")
 	}
 	rand.Seed(time.Now().Unix())
+}
+
+func TestClientWithName(t *testing.T) {
+	name := "myClient"
+	client, err := signalr.NewClient(
+		os.Getenv("SIGNALR_CONNECTION_STRING"),
+		"hub1",
+		signalr.ClientWithName(name),
+	)
+	assert.NoError(t, err)
+	assert.Equal(t, name, client.GetName())
 }
 
 func TestClient_Listen(t *testing.T) {
@@ -130,6 +142,85 @@ func TestClient_ListenWithHandlerMethod(t *testing.T) {
 	})
 }
 
+func TestClient_SendToUserAndReceive(t *testing.T) {
+	clientName := uuid.Must(uuid.NewRandom()).String()
+	withContext(t, func(ctx context.Context, client *signalr.Client) {
+		listenCtx, cancel := context.WithCancel(ctx)
+		started := make(chan struct{}, 1)
+
+		h := &FancyHandlerMock{
+			onStart: func() {
+				started <- struct{}{}
+			},
+			cancel: cancel,
+		}
+
+		h.On("Default", mock.Anything, mock.MatchedBy(func(targetName string) bool {
+			return targetName == "method2"
+		}), mock.Anything).Return(nil).Once()
+
+		go func() {
+			err := client.Listen(listenCtx, h)
+			assert.NoError(t, err)
+		}()
+
+		select {
+		case <-started:
+		case <-ctx.Done():
+		}
+
+		msg1, err := signalr.NewInvocationMessage("method1", "hello")
+		require.NoError(t, err)
+		msg2, err := signalr.NewInvocationMessage("method2", "helloFrom2")
+		require.NoError(t, err)
+		require.NoError(t, client.SendToUser(ctx, msg1, clientName + "blah")) // will never be received by the client
+		require.NoError(t, client.SendToUser(ctx, msg2, clientName)) // send to a single user
+		<-listenCtx.Done()
+		h.AssertExpectations(t)
+	}, signalr.ClientWithName(clientName))
+}
+
+func TestClient_SendToGroupAndReceive(t *testing.T) {
+	clientName := uuid.Must(uuid.NewRandom()).String()
+	groupName := "group" + uuid.Must(uuid.NewRandom()).String()
+	withContext(t, func(ctx context.Context, client *signalr.Client) {
+		listenCtx, cancel := context.WithCancel(ctx)
+		require.NoError(t, client.AddUserToGroup(ctx, groupName, client.GetName()))
+
+		started := make(chan struct{}, 1)
+		h := &FancyHandlerMock{
+			onStart: func() {
+				started <- struct{}{}
+			},
+			cancel: cancel,
+		}
+
+		h.On("Default", mock.Anything, mock.MatchedBy(func(targetName string) bool {
+			return targetName == "method2"
+		}), mock.Anything).Return(nil).Once()
+
+		go func() {
+			err := client.Listen(listenCtx, h)
+			assert.NoError(t, err)
+		}()
+
+		select {
+		case <-started:
+		case <-ctx.Done():
+		}
+
+		msg1, err := signalr.NewInvocationMessage("method1", "hello")
+		require.NoError(t, err)
+		msg2, err := signalr.NewInvocationMessage("method2", "helloFrom2")
+		require.NoError(t, err)
+		require.NoError(t, client.BroadcastGroup(ctx, msg1, groupName + "blah")) // will never be received by the client
+		require.NoError(t, client.BroadcastGroup(ctx, msg2, groupName)) // send to the group containing the client
+		<-listenCtx.Done()
+		h.AssertExpectations(t)
+	}, signalr.ClientWithName(clientName))
+}
+
+
 func TestClient_Broadcast(t *testing.T) {
 	withContext(t, func(ctx context.Context, client *signalr.Client) {
 		msg, err := signalr.NewInvocationMessage("foo")
@@ -172,20 +263,20 @@ func TestClient_SendToUser(t *testing.T) {
 	})
 }
 
-func buildClient(t *testing.T, hubName string) *signalr.Client {
-	client, err := signalr.NewClient(os.Getenv("SIGNALR_CONNECTION_STRING"), hubName)
+func buildClient(t *testing.T, hubName string, opts... signalr.ClientOption) *signalr.Client {
+	client, err := signalr.NewClient(os.Getenv("SIGNALR_CONNECTION_STRING"), hubName, opts...)
 	if err != nil {
 		require.NoError(t, err)
 	}
 	return client
 }
 
-func withContext(t *testing.T, test func(ctx context.Context, client *signalr.Client)) {
+func withContext(t *testing.T, test func(ctx context.Context, client *signalr.Client), opts... signalr.ClientOption) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	hubName := randomName("gotest_", 10)
-	client := buildClient(t, hubName)
+	client := buildClient(t, hubName, opts...)
 	test(ctx, client)
 }
 

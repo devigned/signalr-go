@@ -52,7 +52,7 @@ func dispatch(ctx context.Context, handler Handler, msg *InvocationMessage) erro
 	if method, ok := t.MethodByName(msg.Target); ok {
 		mt := method.Type
 		numIn := mt.NumIn()
-		if numIn == len(msg.Arguments)+2 { // account for instance + context + arguments
+		if numIn == len(msg.Arguments)+2 && method.Name != "Default" { // account for instance + context + arguments
 			args := make([]reflect.Value, mt.NumIn()-1)
 			args[0] = reflect.ValueOf(ctx)
 			for i := 0; i < len(msg.Arguments); i++ {

@@ -21,7 +21,7 @@ import (
 type (
 	// Client represents a bidirectional connection to Azure SignalR
 	Client struct {
-		Name          string
+		name          string
 		hubName       string
 		audType       audienceType
 		parsedConnStr *ParsedConnString
@@ -95,7 +95,7 @@ var (
 // ClientWithName configures a SignalR client to use a specific name for addressing the client individually
 func ClientWithName(name string) ClientOption {
 	return func(client *Client) error {
-		client.Name = name
+		client.name = name
 		return nil
 	}
 }
@@ -111,7 +111,7 @@ func NewClient(connStr string, hubName string, opts ...ClientOption) (*Client, e
 		hubName:       hubName,
 		parsedConnStr: parsed,
 		audType:       clientAudienceType,
-		Name:          uuid.Must(uuid.NewRandom()).String(),
+		name:          uuid.Must(uuid.NewRandom()).String(),
 	}
 
 	for _, opt := range opts {
@@ -339,6 +339,16 @@ func (c *Client) SendInvocation(ctx context.Context, uri string, msg *Invocation
 	return nil
 }
 
+// GetName returns the name of the client
+func (c *Client) GetName() string {
+	return c.name
+}
+
+// GetHub returns the name of the SignalR hub the client is targeting
+func (c *Client) GetHub() string {
+	return c.hubName
+}
+
 func (c *Client) do(ctx context.Context, req *http.Request) (*http.Response, error) {
 	token, err := c.generateToken(req.URL.String(), 2*time.Hour)
 	if err != nil {
@@ -432,7 +442,7 @@ func (c *Client) generateToken(audience string, expiresAfter time.Duration) (str
 			Audience:  audience,
 			ExpiresAt: now.Add(expiresAfter).Unix(),
 		},
-		NameID: c.Name,
+		NameID: c.name,
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
