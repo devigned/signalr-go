@@ -1,5 +1,5 @@
 # Azure SignalR Client for Golang
-[![Go Report Card](https://goreportcard.com/badge/github.com/devigned/signalr-go)](https://goreportcard.com/badge/github.com/devigned/signalr-go)
+[![Go Report Card](https://goreportcard.com/badge/github.com/devigned/signalr-go)](https://goreportcard.com/report/github.com/devigned/signalr-go)
 [![godoc](https://godoc.org/github.com/devigned/signalr-go?status.svg)](https://godoc.org/github.com/devigned/signalr-go)
 [![Build Status](https://travis-ci.org/devigned/signalr-go.svg?branch=master)](https://travis-ci.org/devigned/signalr-go)
 [![Coverage Status](https://coveralls.io/repos/github/devigned/signalr-go/badge.svg?branch=master)](https://coveralls.io/github/devigned/signalr-go?branch=master)
