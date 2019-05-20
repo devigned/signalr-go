@@ -29,6 +29,11 @@ type (
 		FieldString string `json:"fieldString,omitempty"`
 		FieldInt    int    `json:"fieldInt,omitempty"`
 	}
+
+	MessagePrinterHandler struct {
+		onStart func()
+		cancel  func()
+	}
 )
 
 var (
@@ -173,8 +178,8 @@ func TestClient_SendToUserAndReceive(t *testing.T) {
 		require.NoError(t, err)
 		msg2, err := signalr.NewInvocationMessage("method2", "helloFrom2")
 		require.NoError(t, err)
-		require.NoError(t, client.SendToUser(ctx, msg1, clientName + "blah")) // will never be received by the client
-		require.NoError(t, client.SendToUser(ctx, msg2, clientName)) // send to a single user
+		require.NoError(t, client.SendToUser(ctx, msg1, clientName+"blah")) // will never be received by the client
+		require.NoError(t, client.SendToUser(ctx, msg2, clientName))        // send to a single user
 		<-listenCtx.Done()
 		h.AssertExpectations(t)
 	}, signalr.ClientWithName(clientName))
@@ -213,13 +218,12 @@ func TestClient_SendToGroupAndReceive(t *testing.T) {
 		require.NoError(t, err)
 		msg2, err := signalr.NewInvocationMessage("method2", "helloFrom2")
 		require.NoError(t, err)
-		require.NoError(t, client.BroadcastGroup(ctx, msg1, groupName + "blah")) // will never be received by the client
-		require.NoError(t, client.BroadcastGroup(ctx, msg2, groupName)) // send to the group containing the client
+		require.NoError(t, client.BroadcastGroup(ctx, msg1, groupName+"blah")) // will never be received by the client
+		require.NoError(t, client.BroadcastGroup(ctx, msg2, groupName))        // send to the group containing the client
 		<-listenCtx.Done()
 		h.AssertExpectations(t)
 	}, signalr.ClientWithName(clientName))
 }
-
 
 func TestClient_Broadcast(t *testing.T) {
 	withContext(t, func(ctx context.Context, client *signalr.Client) {
@@ -263,7 +267,7 @@ func TestClient_SendToUser(t *testing.T) {
 	})
 }
 
-func buildClient(t *testing.T, hubName string, opts... signalr.ClientOption) *signalr.Client {
+func buildClient(t *testing.T, hubName string, opts ...signalr.ClientOption) *signalr.Client {
 	client, err := signalr.NewClient(os.Getenv("SIGNALR_CONNECTION_STRING"), hubName, opts...)
 	if err != nil {
 		require.NoError(t, err)
@@ -271,7 +275,7 @@ func buildClient(t *testing.T, hubName string, opts... signalr.ClientOption) *si
 	return client
 }
 
-func withContext(t *testing.T, test func(ctx context.Context, client *signalr.Client), opts... signalr.ClientOption) {
+func withContext(t *testing.T, test func(ctx context.Context, client *signalr.Client), opts ...signalr.ClientOption) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -290,4 +294,20 @@ func randomString(prefix string, length int) string {
 		b[i] = letterRunes[rand.Intn(len(letterRunes))]
 	}
 	return prefix + string(b)
+}
+
+func (mph *MessagePrinterHandler) Default(ctx context.Context, target string, args []json.RawMessage) error {
+	fmt.Println(target, args)
+	defer mph.cancel()
+	return nil
+}
+
+func (mph *MessagePrinterHandler) Println(ctx context.Context, message string) error {
+	fmt.Println(message)
+	defer mph.cancel()
+	return nil
+}
+
+func (mph *MessagePrinterHandler) OnStart() {
+	mph.onStart()
 }

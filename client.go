@@ -1,3 +1,5 @@
+// Package signalr provides a simple interface for sending and receiving messages via the Azure SignalR service.
+// For more information about the Azure SignalR service see https://aka.ms/signalr-go.
 package signalr
 
 import (
@@ -93,6 +95,8 @@ var (
 )
 
 // ClientWithName configures a SignalR client to use a specific name for addressing the client individually
+//
+// If a client name is provided, a random name will be assigned to the client and can be accessed via `client.GetName()`
 func ClientWithName(name string) ClientOption {
 	return func(client *Client) error {
 		client.name = name
